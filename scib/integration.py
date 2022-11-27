@@ -465,3 +465,36 @@ def desc(adata, batch, res=0.8, ncores=None, tmp_dir=None, use_gpu=False):
     adata_out.obsm["X_emb"] = adata_out.obsm["X_Embeded_z" + str(res)]
 
     return adata_out
+
+
+def cell2sentence(adata, batch, hvg=None, **kwargs):
+    """cell2sentence wrapper function
+
+    Based on `cell2sentence <https://github.com/rahuldhodapkar/cell2sentence>`_ version 0.0.1
+
+    :param adata: preprocessed ``anndata`` object
+    :param batch: batch key in ``adata.obs``
+    :param hvg: list of highly variables to subset to. If ``None``, the full dataset will be used
+    :return: ``anndata`` object containing the corrected feature matrix as well as an embedding representation of the
+        corrected data
+    """
+    try:
+        import cell2sentence as cs
+        import gensim
+    except ModuleNotFoundError as e:
+        raise OptionalDependencyNotInstalled(e)
+
+    utils.check_sanity(adata, batch, hvg)
+    
+    csdata = cs.transforms.csdata_from_adata(adata)
+    sentences = csdata.create_sentence_lists()
+    model = gensim.models.Word2Vec(
+        sentences=sentences,
+        vector_size=400,
+        window=5,
+        min_count=1,
+        workers=4)
+
+    adata.obsm["X_emb"] = np.array([model.wv.get_mean_vector(s) for s in sentences])
+
+    return adata
